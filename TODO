@@ -1,5 +1,7 @@
 Date::Tie TODO
 
+    implement "floor", such that it doesn't require POSIX
+
     document how to write extensions
 
     use hash instead of if/if/if

@@ -1,5 +1,10 @@
 Date::Tie
 
+0.17
+ - fixes utc_epoch handling.  Dan Wright.
+ - removed some debugging code
+ - added reference to DateTime
+
 0.16
  - utc_epoch key.  Dan Wright.
 

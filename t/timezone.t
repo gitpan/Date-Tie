@@ -14,7 +14,7 @@ sub test {
 	$test++;
 }
 
-print "1..27\n";
+print "1..29\n";
 
 my $timestring = '2003-05-05 15:30:40-04';
 
@@ -79,3 +79,12 @@ test 0 + $date{second}, 40;
 test $date{tzhour}, '-04';
 test 0 + $date{epoch}, $correct_epoch;
 test 0 + $date{utc_epoch}, $correct_utc_epoch;
+
+## Do we do the correct thing when decrementing the day by one?
+my $old_epoch = $date{epoch};
+my $old_utc_epoch = $date{utc_epoch};
+
+$date{day}--;
+
+test $date{epoch}, $old_epoch - 86400;
+test $date{utc_epoch}, $old_utc_epoch - 86400;

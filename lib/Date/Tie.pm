@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.16';
+$VERSION =  '0.17';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -46,9 +46,8 @@ sub STORE {
     my $i_value = POSIX::floor($value);    # get integer part
 
     if ($value =~ /e/i) {
-        # print "*********** SCIENTIFIC NOTATION! $value **********************";
+        # SCIENTIFIC NOTATION!
         ($value) = sprintf("%0.20f", $value) =~ /(.*?)0*$/;  # without trailing zeroes
-        # print "*********** SCIENTIFIC NOTATION! $value **********************";
     }
 
     # TODO: make 3 separate 'if's
@@ -67,7 +66,6 @@ sub STORE {
                 # make sure frac is a positive number
                 my $len_frac = length($frac);
                 $frac = ('1' . '0' x $len_frac ) - $frac if ($value < 0) and ($frac != 0);
-                # carp "************ LEN FRAC! *******************" if ($len_frac != length($frac));
                 $frac = '0' x ($len_frac - length($frac)) . $frac;
                 # print " value $value $frac \n";
             }
@@ -80,20 +78,14 @@ sub STORE {
         }
         if (exists $Frac{$key}) {
 
-            # print " self = ", $self->FETCH('hour'),$self->FETCH('minute'),$self->FETCH('second'), " \n";
-            # print " set $key ", $self->FETCH($key), " to $i_value , $frac\n";
             my ($not_frac_key) = $key =~ /frac_(.*)/;
-            # print "   STORE($not_frac_key, $i_value)\n";
             $self->STORE($not_frac_key, $i_value);
-            # print "  [1]$key ", $self->FETCH($key), "\n";
             my $mult = $Frac{$key};
 
             # make sure frac is a positive number
             my $len_frac = length($frac);
             $frac = ('1' . '0' x $len_frac ) - $frac if ($value < 0) and ($frac != 0);
-            # carp "************ LEN FRAC! *******************" if ($len_frac != length($frac));
             $frac = '0' x ($len_frac - length($frac)) . $frac;
-            # print " set $key ", $self->FETCH($key), " to $i_value , $frac [2]\n";
             $frac = '.' . $frac;
 
             # round last digit if the number is a fraction of '3': 1/3 1/9 ...
@@ -103,19 +95,26 @@ sub STORE {
                 # print "  test: 60 * $frac = ", 60 * ( '.' . $frac ) , " ", 3600 * ( '.' . $frac ) , "\n";
                 my ($last_frac, $last_mult) = ($frac, $mult);
 
-                foreach(0..2) {
+                foreach(0..3) {
+
+                    if ( $_ == 3 ) {
+                        # give-up rounding --- go back to original values ???
+                        ($frac, $mult) = ($last_frac, $last_mult);
+                        last;
+                    }
+
                     #   000.$
                     if ($frac =~ /000.$/) {
                         $frac =~ s/.$//;
                         # print "   last digit rounding to $frac\n";
-                        goto MUL3EXIT;
+                        last;
                     }
                     elsif ($frac =~ /999.$/) {
                         my ($zeroes, $digit) = $frac =~ /\.(.*)(.)$/;
                         $digit = '0.' . '0' x (length($zeroes)-1) . sprintf("%02d", 10 - $digit);
                         $frac += $digit;
                         # print "   last digit rounding up to $frac\n";
-                        goto MUL3EXIT;
+                        last;
                     }
                     else {
                         $frac *= 3;
@@ -124,13 +123,7 @@ sub STORE {
                     }
 
                 } # foreach
-
-                # give-up rounding --- go back to original values ???
-                # print " GIVE UP!\n";
-                ($frac, $mult) = ($last_frac, $last_mult);
-
             } # round 1/3 1/9 ...
-            MUL3EXIT:   # I have to find out how to make this w/o goto ...
 
             # zero units below this
             if ($not_frac_key eq 'hour') {
@@ -162,7 +155,6 @@ sub STORE {
     # print "STORE:  (integer) $key, $value\n";
 
     if ($key eq 'tz') {
-        # print "store tz: $value; tzhour = ",int($value / 100)," tzminute = ", $value - 40 * int($value / 100),"\n";   #  60 - 100 !
         # note: this must be "int", not "floor" !!
         STORE($self, 'tzminute', $value - 40 * int($value / 100));   #  60 - 100 !
         return;
@@ -175,13 +167,9 @@ sub STORE {
         else {
             $delta = $value * 60   - $self->{tz100};
         }
-        # print "  STORE: TZ $key $value : delta = $delta [ $self->{tz100} ]\n";
-        # FETCH($self, 'epoch') unless exists $self->{epoch};
         $self->{tz100} += $delta;
 
         $self->STORE('epoch', FETCH($self, 'epoch') + $delta);
-        # print "  STORE: TZ now $self->{tz100}\n";
-        # %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
         return;
     }
 
@@ -290,7 +278,10 @@ sub STORE {
 
     if (($value >= $Min{$key}) and ($value <= $Max{$key}) and 
         ($key ne 'weekday') and ($key ne 'yearday') and ($key ne 'week')) {
-        $self->{epoch} += $delta * $Mult{$key} if exists $self->{epoch};
+        if (exists $self->{epoch}) {
+            $self->{epoch} += $delta * $Mult{$key};
+            delete $self->{utc_epoch};
+        }
         $self->{$key}  =  $value;
         # update dependencies
         if ($key eq 'day') {
@@ -307,11 +298,8 @@ sub STORE {
     unless ( exists $self->{epoch} ) {
         # print "  STORE: create epoch\n";
         FETCH($self, 'epoch');
-        # print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
     }
-    # print "  STORE: remove all except epoch, $self->{epoch} [ $delta * $Mult{$key} ] \n";
     $self->{epoch} += $delta * $Mult{$key};
-    # print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
     # remove all other keys (now invalid)
     %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
     return;
@@ -463,8 +451,6 @@ sub new {
     return $self;
 }
 
-
-# new keys on v.0.12
 # FIRSTKEY added to support recommended assignment order: set timezone, then epoch and fractional seconds
 #   tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch}, frac => $d{frac};
 
@@ -706,6 +692,8 @@ If you change I<month>, then I<day> will be adjusted to fit that month:
 If you need to know whether a hash is tied to Date::Tie use perl function I<tied()>
 
 =head1 SEE ALSO
+
+I<DateTime> and C<http://datetime.perl.org>
 
 I<Date::Calc>, I<Date::Manip>, I<Class::Date>, and many other good date and time modules!
 
