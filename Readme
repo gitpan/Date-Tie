@@ -1,0 +1,50 @@
+NAME
+    Date::Tie - a perlish interface to dates
+
+SYNOPSIS
+	use Date::Tie;
+
+	tie %date, 'Date::Tie';
+	%date = { year => 2001, month => 11, day => '09' };
+	$date{year}++;
+	$date{month} += 12;    # 2003-11-09
+
+	# you can also do this
+	$date = Date::Tie->new( year => 2001, month => 11, day => '09' );
+	$date->{year}++;
+	$date->{month} += 12;  # 2003-11-09
+
+DESCRIPTION
+
+Date::Tie is an attempt to simplify date operations syntax.
+
+Date::Tie manages a hash containing the keys: 
+epoch, year, month, day, hour, minute, and second.
+Whenever a new value is stored in a key, it may overflow to 
+the other keys following the common (ISO) date rules. 
+
+For example: 
+	 print $a{hour}, ":", $a{minute};     #  00 59
+	 $a{minute}++;
+	 print $a{hour}, ":", $a{minute};     #  01 00
+
+HISTORY
+        
+	0.03 STORE rewritten
+		examples work
+
+	0.02 Make it a real module
+
+	0.01 I started this when dLux asked:
+		> What about this kind of syntax:
+		> my $mydate = new XXXX::Date "2001-11-07";
+		> # somewhere later in the code
+		> my $duedate = $mydate + 14 * XXX::Date::DAY;
+		> my $duedate = $mydate + 14 * DAY;
+		> my $duedate = $mydate->add(12, DAYS);
+		> my $duedate = $mydate->add(day => 12);
+		> my $duedate = $mydate + "12 days";
+		> my $duedate = $mydate + "12 days and 4 hours and 3 seconds"; # :-)
+
+AUTHOR
+    Flávio Soibelmann Glock (fglock@pucrs.br)
