@@ -13,7 +13,7 @@ sub test {
 	$test++;
 }
 
-print "1..6\n";
+print "1..7\n";
 
 $d{year} = 2001;
 $d{month} = 8;
@@ -30,5 +30,10 @@ test "$d{year}$d{month}$d{day}", "20001130";
 test "$d{year}$d{month}$d{day}", "20000229";
   $d{year}++;
 test "$d{year}$d{month}$d{day}", "20010228";
+
+# this tests "next month's last day"
+  $d{month}+=2;
+  $d{day} = 0;   # this is actually a "-1" since days start in "1"
+test "$d{year}$d{month}$d{day}", "20010331";
 
 1;
