@@ -1,5 +1,9 @@
 Date::Tie TODO
 
+    document how to write extensions
+
+    use hash instead of if/if/if
+
     leap seconds
 
     memoize fractional values
