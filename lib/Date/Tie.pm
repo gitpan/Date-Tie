@@ -1,4 +1,4 @@
-#/bin/perl
+#
 # Copyright (c) 2001,2002 Flavio Soibelmann Glock. 
 # All rights reserved.
 # This program is free software; you can redistribute it and/or
@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.11';
+$VERSION =  '0.12';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -161,6 +161,8 @@ sub STORE {
     # print "STORE:  (integer) $key, $value\n";
 
     if ($key eq 'tz') {
+        # print "store tz: $value; tzhour = ",int($value / 100)," tzminute = ", $value - 40 * int($value / 100),"\n";   #  60 - 100 !
+        # note: this must be "int", not "floor" !!
         STORE($self, 'tzminute', $value - 40 * int($value / 100));   #  60 - 100 !
         return;
     }
@@ -206,7 +208,7 @@ sub STORE {
         else {
             # print "  STORE: month overflow: $value\n";
             $value -= 1;
-            $self->{year} += int( $value / 12);
+            $self->{year} += POSIX::floor( $value / 12);
             $self->{month} = 1 + $value % 12;
         }
 
@@ -343,11 +345,13 @@ sub FETCH {
     }
     if ($key eq 'tzhour') {
         my $s = $self->{tz100} < 0 ? '-' : '+';
+        # note: this must be "int", not "floor" !!
         $value = int($self->{tz100} / 3600);
         return $s . sprintf("%02d", abs($value));
     }
     if ($key eq 'tzminute') {
         my $s = $self->{tz100} < 0 ? '-' : '+';
+        # note: this must be "int", not "floor" !!
         $value = int ( ( $self->{tz100} - 3600 * int($self->{tz100} / 3600) ) / 60 );
         return $s . sprintf("%02d", abs($value));
     }
@@ -376,7 +380,7 @@ sub FETCH {
         $self->{weekday} = 7 unless $self->{weekday};
         $self->{yearday}++;
 
-        $self->{week} = int ( ($self->{yearday} - $self->{weekday} + 10) / 7 );
+        $self->{week} = POSIX::floor ( ($self->{yearday} - $self->{weekday} + 10) / 7 );
         if ($self->{yearday} > 361) {
             # print "  FETCH: week overflow\n";
             # find out next year's jan-04 weekday
@@ -432,6 +436,23 @@ sub new {
     return $self;
 }
 
+
+# new keys on v.0.12
+# FIRSTKEY added to support recommended assignment order: set timezone, then epoch and fractional seconds
+#   tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch}, frac => $d{frac};
+
+sub FIRSTKEY {
+    my ($self) = @_;
+    return 'tz';
+}
+
+sub NEXTKEY {
+    my ($self, $lastkey) = @_;
+    return 'epoch' if $lastkey eq 'tz';
+    return 'frac'  if $lastkey eq 'epoch';
+    return undef;
+}
+
 # This is for debugging only !
 # sub iso { my $self = shift; return $self->{year} . '-' . $self->{month} . '-' . $self->{day} . " $self->{weekyear}-W$self->{week}-$self->{weekday}"; }
 # sub debug { return; my $self = shift; return join(':',%{$self}); }
@@ -470,6 +491,8 @@ Date::Tie - ISO dates made easy
 
     # copy a date with timezone
     tie my %newdate, 'Date::Tie', tz => $date{tz}, epoch => $date{epoch};
+    or
+    tie my %newdate, 'Date::Tie', %date;
 
 =head1 DESCRIPTION
 
@@ -612,13 +635,14 @@ it is expected to work only on years between 1970 and 2038
 Reading time zone C<-0030> with S<C<$date{tzhour} . $date{tzminute}>> gives C<-00-30>. 
 Use I<tz> to get C<-0030>.
 
-The order of setting hash elements is important. 
-This is I<not> likely to make C<%b> equal to C<%d>:
+The order of setting hash elements is important, since changing the timezone will
+change the hour.
 
-    # copy all fields - may not work!
+These are some ways to make a copy of C<%d>:
+
+    # copy all fields
+    #     hash %d MUST be tied do Date::Tie, if you are using timezones
     tie my %b, 'Date::Tie', %d;
-
-These are some ways to make a copy of C<%d>: 
 
     # set timezone, then epoch, ignoring fractional seconds
     tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
