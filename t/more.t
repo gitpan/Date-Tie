@@ -13,7 +13,7 @@ sub test {
 	$test++;
 }
 
-print "1..18\n";
+print "1..19\n";
 
 $d{year} = 2001;
 $d{month} = 10;
@@ -46,13 +46,13 @@ test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second}", "19961231T101113";
 test "$d{weekyear}W$d{week}$d{weekday}T$d{hour}$d{minute}$d{second}", "1997W012T101113";
 
 $d{tzhour} = -3;
-test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T071113 -03:00";
+test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T071113 -03:-00";
 
 $d{tzhour} = 0;
-test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T101113 +00:00";
+test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T101113 +00:+00";
 
 $d{tzhour} = 3;
-test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T131113 +03:00";
+test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tzhour}:$d{tzminute}", "19961231T131113 +03:+00";
 
 $d{tz} = '-0030';
 test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tz}", "19961231T094113 -0030";
@@ -68,5 +68,13 @@ test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tz}", "19961231T2
 
 $d{tz} = '+0200';
 test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tz}", "19970101T011113 +0200";
+
+# This is NOT expected to work!
+# print " d = ", %d, "\n";
+# tie my %b, 'Date::Tie', %d;
+# test "$b{year}$b{month}$b{day}T$d{hour}$b{minute}$b{second} $b{tz}", "19970101T011113 +0200";
+
+tie my %c, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
+test "$c{year}$c{month}$c{day}T$d{hour}$c{minute}$c{second} $c{tz}", "19970101T011113 +0200";
 
 1;

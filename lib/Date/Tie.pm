@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Max %Min %Mult $Infinity $VERSION );
 @EXPORT =   qw( new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.04';
+$VERSION =  '0.05';
 $Infinity = 999_999_999_999;
 %Mult = ( 	day => 24 * 60 * 60, hour => 60 * 60, minute => 60, second => 1,
 			monthday => 24 * 60 * 60, weekday => 24 * 60 * 60, yearday => 24 * 60 * 60, 
@@ -42,23 +42,24 @@ sub STORE {
 	}
 	if (($key eq 'tzhour') or ($key eq 'tzminute')) {
 		if ($key eq 'tzhour') {
-			$delta = $value * 3600 - $self->{tz};
+			$delta = $value * 3600 - $self->{tz100};
 		}
 		else {
-			$delta = $value * 60   - $self->{tz};
+			$delta = $value * 60   - $self->{tz100};
 		}
-		# print "  STORE: TZ $key $value : delta = $delta [ $self->{tz} ]\n";
+		# print "  STORE: TZ $key $value : delta = $delta [ $self->{tz100} ]\n";
 		FETCH($self, 'epoch') unless exists $self->{epoch};
 		$self->{epoch} += $delta;
-		$self->{tz} += $delta;
-		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+		$self->{tz100} += $delta;
+		# print "  STORE: TZ now $self->{tz100}\n";
+		%{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );	
 		return;
 	}
 	if ($key eq 'epoch') {
 		# print "  STORE: epoch:  remove all other keys\n";
 		$self->{epoch} = $value;
 		# remove all other keys (now invalid)
-		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+		%{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );	
 		return;
 	}
 	if ($key eq 'month') {
@@ -100,7 +101,7 @@ sub STORE {
 		my $weekyear = exists $self->{weekyear} ? $self->{weekyear} : FETCH($self, 'weekyear');
 		FETCH($self, 'epoch') unless exists $self->{epoch};
 		$self->{epoch} += 52 * $Mult{week} * ($value - $weekyear);
-		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+		%{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );	
 		my $week2 =    FETCH($self, 'week');
 		while ($week2 != $week) {
 			STORE($self, 'week', $week2 + ($value <=> $weekyear) );
@@ -143,7 +144,7 @@ sub STORE {
 	$self->{epoch} += $delta * $Mult{$key};
 	# print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
 	# remove all other keys (now invalid)
-	%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+	%{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );	
 	return;
 }
 
@@ -156,18 +157,21 @@ sub FETCH {
 	# print "FETCH:  $key\n";
 
 	if ($key eq 'tz') {
+		# print "FETCH:  $key = $self->{tz100} \n";
 		my ($h, $m) = (FETCH($self, 'tzhour'), FETCH($self, 'tzminute'));
-		my $s = $self->{tz} < 0 ? '-' : '+';
-		# print "FETCH:  $key $s $h $m \n";
+		my $s = $self->{tz100} < 0 ? '-' : '+';
+		# print "FETCH:  $key $self->{tz100} = $s $h $m \n";
 		return $s . substr($h,1,2) . sprintf("%02d", abs($m));
 	}
 	if ($key eq 'tzhour') {
-		$value = int($self->{tz} / 3600);
-		return ($value >= 0) ? sprintf("+%02d", $value) : sprintf("%+03d", $value);
+		my $s = $self->{tz100} < 0 ? '-' : '+';
+		$value = int($self->{tz100} / 3600);
+		return $s . sprintf("%02d", abs($value));
 	}
 	if ($key eq 'tzminute') {
-		$value = int ( ( $self->{tz} - 3600 * int($self->{tz} / 3600) ) / 60 );
-		return ($value >= 0) ? sprintf("%02d", $value) : sprintf("%+03d", $value);
+		my $s = $self->{tz100} < 0 ? '-' : '+';
+		$value = int ( ( $self->{tz100} - 3600 * int($self->{tz100} / 3600) ) / 60 );
+		return $s . sprintf("%02d", abs($value));
 	}
 
 	unless (exists($self->{$key}) ) {
@@ -212,15 +216,20 @@ sub FETCH {
 	} # create keys
 
 	$value = $self->{$key};
-	$value = '0' . $value if ($value >= 0) && ($value < 10) && ($key ne 'weekday');
-	$value = '0' . $value if (length($value) < 3) && ($key eq 'yearday');
-	return $value;
+	return $value if $key eq 'weekday';
+	return sprintf("%02d", $value) if $key ne 'yearday';
+	return sprintf("%03d", $value);
+
+	# $value = '0' . $value if ($value >= 0) && ($value < 10) && ($key ne 'weekday');
+	# $value = '0' . $value if (length($value) < 3) && ($key eq 'yearday');
+	# return $value;
 }
 
 sub TIEHASH  { 
-	# print "  TIE $_[0] $_[1]\n";
+	# print "  TIE ", join(":", @_), "\n";
 	my $self = bless {}, shift;
 	my ($tmp1, $tmp2);
+	$self->{tz100} = 0;
 	( $self->{second},  $self->{minute}, $self->{hour},
 	  $self->{day},     $self->{month},  $self->{year},
 	  $self->{weekday}, $self->{yearday} ) = gmtime();
@@ -228,10 +237,10 @@ sub TIEHASH  {
 	$self->{month}++;
 	$self->{weekday} = 7 unless $self->{weekday};
 	$self->{yearday}++;
-	$self->{tz} = 0;
 	while ($#_ > -1) {
 		($tmp1, $tmp2) = (shift, shift);
-		$self->{$tmp1} = $tmp2;
+		# $self->{$tmp1} = $tmp2;
+		STORE ($self, $tmp1, $tmp2);
 	}
 	return $self;
 }
@@ -246,19 +255,21 @@ sub new {
 
 # This is for debugging only !
 sub iso { my $self = shift; return $self->{year} . '-' . $self->{month} . '-' . $self->{day} . " $self->{weekyear}-W$self->{week}-$self->{weekday}"; }
-sub debug { my $self = shift; return join(':',%{$self}); }
+sub debug { return; my $self = shift; return join(':',%{$self}); }
 
 1;
 
 __END__
 
 =head1 NAME
-    Date::Tie - a perlish interface to ISO dates
+
+    Date::Tie - ISO dates made easy
 
 =head1 SYNOPSIS
+
 	use Date::Tie;
 
-    tie my %date, 'Date::Tie', year => 2001, month => 11, day => 9;
+	tie my %date, 'Date::Tie', year => 2001, month => 11, day => 9;
 	$date{year}++;
 	$date{month} += 12;    # 2003-11-09
 
@@ -267,9 +278,9 @@ __END__
 	$date->{year}++;
 	$date->{month} += 12;  # 2003-11-09
 
-    $date{weekday} = 0;    # sunday at the start of this week
-    $date{weekday} = 7;    # sunday at the end of this week
-    $date{weekday} = 14;   # sunday next week 
+	$date{weekday} = 0;    # sunday at the start of this week
+	$date{weekday} = 7;    # sunday at the end of this week
+	$date{weekday} = 14;   # sunday next week 
 
 	$date{tz} = '-0300';   # change timezone
 	$date{tzhour}++;       # increment timezone
@@ -281,6 +292,8 @@ Date::Tie is an attempt to simplify date operations syntax.
 Date::Tie manages a hash containing the keys: 
 epoch, year, month, day, hour, minute, second,
 yearday, week, weekday, weekyear, tz, tzhour, tzminute. 
+
+All keys have read/write access.
 
 'week' is the week number in the year.
 
@@ -294,12 +307,13 @@ while changing 'year' will leave you with the same month and monthday.
 'epoch' is the local epoch. It changes when timezone ('tzhour', 'tzminute') changes.
 
 'tz' is the timezone as hundreds (-0030). It is not always the same as
-(tzhour . tzminute), which in this case would be +00-30.
+(tzhour . tzminute), which in this case would be -00-30.
 
 Whenever a new value is stored, it will change 
 the other keys following the ISO date rules. 
 
 For example: 
+
 	 print $a{hour}, ":", $a{minute};     #  00 59
 	 $a{minute}++;
 	 print $a{hour}, ":", $a{minute};     #  01 00
@@ -318,15 +332,32 @@ Week 01 often begins in the previous year.
 
 =head1 CAVEATS
 
-Reading time zone -0030 with ('tzhour' . 'tzminute') gives +00-30. 
+Reading time zone -0030 with ('tzhour' . 'tzminute') gives -00-30. 
 Use 'tz' to get -0030.
+
+The order of setting hash elements is important. 
+This will NOT make %b equal to %d:
+
+	# copy all fields - will not work!
+	tie my %b, 'Date::Tie', %d;
+
+This is one way to make a copy of %d: 
+
+	# set timezone, then epoch
+	tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
 
 =head1 TODO
 
 	test fractions of seconds
 
+	access environment for timezone initialization
+
 =head1 HISTORY
        
+	0.05 POD format correction
+	     tzhour,tzminute is -00-30 instead of +00-30
+	     more tests
+
 	0.04 yearday, weekday, week, weekyear
 	     better storage
 	     initializes to 'now'.
@@ -338,7 +369,7 @@ Use 'tz' to get -0030.
 
 	0.02 Make it a real module
 
-	0.01 I started this when dLux asked:
+	0.01 I started this when dLux said:
 		> What about this kind of syntax:
 		> my $mydate = new XXXX::Date "2001-11-07";
 		> # somewhere later in the code
@@ -349,6 +380,11 @@ Use 'tz' to get -0030.
 		> my $duedate = $mydate + "12 days";
 		> my $duedate = $mydate + "12 days and 4 hours and 3 seconds"; # :-)
 
+=head1 SEE ALSO
+
+Date::Calc, Date::Manip, Class::Date, and many others!
+
 =head1 AUTHOR
-    Flávio Soibelmann Glock (fglock@pucrs.br)
+
+Flávio Soibelmann Glock (fglock@pucrs.br)
 

@@ -7,5 +7,6 @@ Readme
 t/tie.t
 t/more.t
 
-eg/week.pl
 eg/example.pl
+eg/week.pl
+
