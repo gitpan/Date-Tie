@@ -1,5 +1,8 @@
 Date::Tie
 
+0.13
+ - clears a Win32 warning when making %a = %c;
+
 0.12
  - accepts hash-copy syntax:
      tie my %b, 'Date::Tie', %d;

@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.12';
+$VERSION =  '0.13';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -167,6 +167,7 @@ sub STORE {
         return;
     }
     if (($key eq 'tzhour') or ($key eq 'tzminute')) {
+        $self->{tz100} = 0 unless exists $self->{tz100};   # this will clear a Win32 warning
         if ($key eq 'tzhour') {
             $delta = $value * 3600 - $self->{tz100};
         }
