@@ -8,6 +8,7 @@ CHANGES
 t/tie.t
 t/more.t
 t/overflow.t
+t/frac.t
 
 eg/example.pl
 eg/week.pl

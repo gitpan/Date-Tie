@@ -7,11 +7,12 @@ package Date::Tie;
 use strict;
 use Tie::Hash;
 use Exporter;
+use POSIX;  # floor()
 use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Max %Min %Mult $Infinity $VERSION );
 @EXPORT =   qw( new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.08';
+$VERSION =  '0.09';
 $Infinity = 999_999_999_999;
 %Mult = (   day => 24 * 60 * 60,       hour => 60 * 60,         minute => 60, second => 1,
             monthday => 24 * 60 * 60,  weekday => 24 * 60 * 60, yearday => 24 * 60 * 60, 
@@ -33,6 +34,29 @@ sub STORE {
     $key = 'day' if $key eq 'monthday';
     $value += 0;
     # print "STORE:  $key, $value to ", $self->debug , "\n";
+    if ($key eq 'frac') {
+        my ($frac) = $value =~ /\.(.*)/;  # get fractional part as an 'integer'
+        $frac = 0 unless defined $frac;   # or get zero 
+        if (($value < 0) or ($value >= 1)) {
+            # fractional overflow
+            $self->FETCH('second') unless exists $self->{second};
+            $self->STORE('second',$self->{second} + POSIX::floor($value));
+            # print " value $value $frac \n";
+            # make sure frac is a positive number
+            $frac = ('1' . '0' x length($frac) ) - $frac if ($value < 0) and ($frac != 0);
+            # print " value $value $frac \n";
+        }
+        if ($frac == 0) {
+            $self->{frac} = '.0';
+            return;
+        }
+        $self->{frac} = '.' . $frac;
+        return;
+    }
+
+    # make $value integer
+    $value = POSIX::floor($value);
+
     if ($key eq 'tz') {
         STORE($self, 'tzminute', $value - 40 * int($value / 100));   #  60 - 100 !
         return;
@@ -49,20 +73,20 @@ sub STORE {
         $self->{epoch} += $delta;
         $self->{tz100} += $delta;
         # print "  STORE: TZ now $self->{tz100}\n";
-        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );    
+        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
         return;
     }
     if ($key eq 'epoch') {
         # print "  STORE: epoch:  remove all other keys\n";
         $self->{epoch} = $value;
         # remove all other keys (now invalid)
-        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );    
+        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
         return;
     }
     if ($key eq 'month') {
         return if (exists $self->{month}) and ($self->{month} == $value);
         # print "  STORE: month:  remove epoch\n";
-	$self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
+        $self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
         delete $self->{weekday};     
@@ -129,7 +153,7 @@ sub STORE {
         my $weekyear = exists $self->{weekyear} ? $self->{weekyear} : FETCH($self, 'weekyear');
         FETCH($self, 'epoch') unless exists $self->{epoch};
         $self->{epoch} += 52 * $Mult{week} * ($value - $weekyear);
-        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );    
+        %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
         my $week2 =    FETCH($self, 'week');
         while ($week2 != $week) {
             STORE($self, 'week', $week2 + ($value <=> $weekyear) );
@@ -172,7 +196,7 @@ sub STORE {
     $self->{epoch} += $delta * $Mult{$key};
     # print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
     # remove all other keys (now invalid)
-    %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100} );    
+    %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
     return;
 }
 
@@ -184,6 +208,10 @@ sub FETCH {
     $key = 'day' if $key eq 'monthday';
     # print "FETCH:  $key\n";
 
+    if ($key eq 'frac') {
+        # return substr($self->{frac},1);
+        return $self->{frac};
+    }
     if ($key eq 'tz') {
         # print "FETCH:  $key = $self->{tz100} \n";
         my ($h, $m) = (FETCH($self, 'tzhour'), FETCH($self, 'tzminute'));
@@ -257,6 +285,7 @@ sub TIEHASH  {
     # print "  TIE ", join(":", @_), "\n";
     my $self = bless {}, shift;
     my ($tmp1, $tmp2);
+    $self->{frac} = '.0'; 
     $self->{tz100} = 0;
     ( $self->{second},  $self->{minute}, $self->{hour},
       $self->{day},     $self->{month},  $self->{year},
@@ -332,14 +361,17 @@ For example:
      $a{minute}++;
      print $a{hour}, ":", $a{minute};     #  01 00
 
-The default value of a new hash will be the current value of I<gmtime()>, with timezone C<+0000>.
+The default value of a new hash will be the current value of I<gmtime()>, 
+with timezone C<+0000> and with fractional seconds set to zero.
 
 =head1 HASH KEYS
 
 Date::Tie manages a hash containing the keys: 
 I<year>, I<month>, I<day>, I<hour>, I<minute>, I<second>,
-I<yearday>, I<week>, I<weekday>, I<weekyear>, I<epoch>, I<tz>, I<tzhour>, I<tzminute>. 
-All keys can read or written directly.
+I<yearday>, I<week>, I<weekday>, I<weekyear>, I<epoch>, 
+I<tz>, I<tzhour>, I<tzminute>,
+I<frac>. 
+All keys can be read or written directly.
 
 =over 4
 
@@ -373,6 +405,31 @@ S<C<$date{tzhour} . $date{tzminute}>>, which in this case would be C<-00-30>.
 
 Changing timezone (any of I<tz>, I<tzhour>, or I<tzminute>) changes I<epoch>.
 
+=item I<frac>
+
+Fractional seconds. A value bigger or equal to 0 and less than 1.
+
+    $d{frac} =   0.5;
+    print $d{frac};              # '.5'
+
+    $d{frac} =   0;
+    print $d{frac};              # '.0'
+
+I<second> and I<epoch> are integers.
+Setting I<frac> does not change I<second> or I<epoch>, unless it overflows:
+
+    $d{second} = 6;
+    print $d{second};            # '06'
+    $d{frac} =   1.5;
+    print $d{second};            # '07'    - frac overflow
+    print $d{frac};              # '.5'
+
+To obtain the fractional second or epoch: 
+
+    print "$d{second}$d{frac}";  # '07.5'  - concatenation
+    print $d{second} + $d{frac}; # '7.5'   - addition
+    print $d{epoch} + $d{frac};  # '45673455.5'   - fractional epoch
+
 =back
 
 =head1 ISO 8601
@@ -404,6 +461,9 @@ This is one way to make a copy of C<%d>:
 
     # set timezone, then epoch
     tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
+
+    # set timezone, then epoch and fractional seconds
+    tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch}, frac => $d{frac};
 
 If you change I<month>, then I<day> will be adjusted to fit that month:
 

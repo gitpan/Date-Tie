@@ -1,5 +1,8 @@
 Date::Tie
 
+0.09 - added 'frac' - fractional seconds
+       uses integer arithmetic to avoid rounding problems
+
 0.08 - changing 'month' after changing 'day' would reset
        day to '1'
 

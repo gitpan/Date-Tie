@@ -13,7 +13,7 @@ sub test {
 	$test++;
 }
 
-print "1..19\n";
+print "1..21\n";
 
 $d{year} = 2001;
 $d{month} = 10;
@@ -76,5 +76,22 @@ test "$d{year}$d{month}$d{day}T$d{hour}$d{minute}$d{second} $d{tz}", "19970101T0
 
 tie my %c, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
 test "$c{year}$c{month}$c{day}T$d{hour}$c{minute}$c{second} $c{tz}", "19970101T011113 +0200";
+
+
+# thanks to Eduardo M. Cavalcanti for this test:
+# it fails in Date::Tie 0.07
+
+my $date1 = Date::Tie->new();
+my $date2 = Date::Tie->new();
+# print "$date1->{year}-$date1->{month}-$date1->{day}\n";
+# print "$date2->{year}-$date2->{month}-$date2->{day}\n";
+$date1->{day} = 29;
+$date1->{month} = 4;
+$date2->{month} = 4;
+$date2->{day} = 29;
+print "$date1->{year}-$date1->{month}-$date1->{day}\n";
+print "$date2->{year}-$date2->{month}-$date2->{day}\n";
+test "$date1->{day}$date1->{month}", "2904";
+test "$date2->{day}$date1->{month}", "2904";
 
 1;
