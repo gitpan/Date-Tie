@@ -6,6 +6,7 @@ Readme
 
 t/tie.t
 t/more.t
+t/overflow.t
 
 eg/example.pl
 eg/week.pl

@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Max %Min %Mult $Infinity $VERSION );
 @EXPORT =   qw( new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.05';
+$VERSION =  '0.06';
 $Infinity = 999_999_999_999;
 %Mult = ( 	day => 24 * 60 * 60, hour => 60 * 60, minute => 60, second => 1,
 			monthday => 24 * 60 * 60, weekday => 24 * 60 * 60, yearday => 24 * 60 * 60, 
@@ -74,12 +74,28 @@ sub STORE {
 
 		if (($value >= $Min{$key}) and ($value <= $Max{$key})) {
 			$self->{$key} = $value;
-			return;
+			# return;
 		}
-		# print "  STORE: month overflow: $value\n";
-		$value -= 1;
-		$self->{year} += int( $value / 12);
-		$self->{month} = 1 + $value % 12;
+		else {
+			# print "  STORE: month overflow: $value\n";
+			$value -= 1;
+			$self->{year} += int( $value / 12);
+			$self->{month} = 1 + $value % 12;
+		}
+
+		$self->FETCH('day');
+		if ($self->{day} >= 29) {
+			my ($tmp_month) = $self->FETCH('month');
+			# check for day oveflow
+			# print " check \n";
+			$self->STORE('day',$self->{day});
+			$self->FETCH('month');
+			if ($tmp_month != $self->{month}) {
+				# print "  overflow! \n";
+				$self->STORE('day', 0);
+			}
+		}
+
 		return;
 	}
 	if ($key eq 'year') {
@@ -93,6 +109,20 @@ sub STORE {
 		delete $self->{weekyear}; 	
 
 		$self->{year} = $value;
+
+		$self->FETCH('day');
+		if ($self->{day} >= 29) {
+			my ($tmp_month) = $self->FETCH('month');
+			# check for day oveflow
+			# print " check ";
+			$self->STORE('day',$self->{day});
+			$self->FETCH('month');
+			if ($tmp_month != $self->{month}) {
+				# print " yr-overflow $tmp_month != ", $self->{month}," \n";
+				$self->STORE('day', 0);
+			}
+		}
+
 		return;
 	}
 	if ($key eq 'weekyear') {
@@ -345,6 +375,9 @@ This is one way to make a copy of %d:
 
 	# set timezone, then epoch
 	tie my %b, 'Date::Tie', tz => $d{tz}, epoch => $d{epoch};
+
+If you change month, the day will be adjusted to fit that month.
+That is, "october 31" + "1 month" gives "december 30".
 
 =head1 TODO
 
