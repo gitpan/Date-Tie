@@ -3,95 +3,147 @@
 # This program is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 
-# fetch or set weekday/week will create weekday/week
-# same for yearday/year
 # how to copy to another var? 
 # - will have to create another tied hash, then transfer the epoch to it.
-# do I need 'monthday' ? 
-# how to prevent leaks?
-# can the data be stored inside the hash?
 
 package Date::Tie;
 use strict;
 use Tie::Hash;
 use Exporter;
 use Time::Local qw( timegm );
-use vars    qw( @ISA @EXPORT %Date %Max %Min %Mult $Infinity $VERSION );
+use vars    qw( @ISA @EXPORT %Max %Min %Mult $Infinity $VERSION );
 @EXPORT =   qw( new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.03';
+$VERSION =  '0.04';
 $Infinity = 999_999_999_999;
-%Date = ( );
-%Mult = ( 	day => 24 * 60 * 60, hour => 60 * 60, minute => 60, second => 1 );
+%Mult = ( 	day => 24 * 60 * 60, hour => 60 * 60, minute => 60, second => 1,
+			monthday => 24 * 60 * 60, weekday => 24 * 60 * 60, yearday => 24 * 60 * 60, 
+			week => 7 * 24 * 60 * 60, tzhour => 60 * 60, tzminute => 60 );
 
-%Max  = ( 	year =>     $Infinity,  	yearday =>  365, 
-			month =>    12,          	monthday => 28,
-			day =>      28,         	week =>     52, 
-			weekday =>  7,          	hour =>     23, 
-			minute =>   59,          	second =>   59, 	epoch =>    $Infinity   );
+%Max  = ( 	year =>     $Infinity,  	yearday =>  365, 			month =>    12,  
+        	monthday => 28,				day =>      28,         	week =>     52, 
+			weekday =>  7,          	hour =>     23, 			minute =>   59,  
+        	second =>   59, 			weekyear => $Infinity, 	  	epoch =>    $Infinity );
 
-%Min  = ( 	year =>     -$Infinity, 	yearday =>  1,   
-			month =>    1,          	monthday => 1,
-			day =>      1,          	week =>     1,  
-			weekday =>  1,           	hour =>     0, 
-			minute =>   0,          	second =>   0, 		epoch =>    -$Infinity  );
+%Min  = ( 	year =>     -$Infinity, 	yearday =>  1,  			month =>    1, 
+         	monthday => 1,				day =>      1,          	week =>     1,  
+			weekday =>  1,           	hour =>     0, 				minute =>   0, 
+         	second =>   0,				weekyear => -$Infinity,   	epoch =>    -$Infinity  );
 
 sub STORE { 
 	my ($self, $key, $value) = @_; 
-	my ($delta, $epoch);
-	# print "STORE: ", 0+$self," $key, $value\n";
+	my ($delta);
+	$key = 'day' if $key eq 'monthday';
+	$value += 0;
+	# print "STORE:  $key, $value to ", $self->debug , "\n";
+	if ($key eq 'tz') {
+		STORE($self, 'tzminute', $value - 40 * int($value / 100));   #  60 - 100 !
+		return;
+	}
+	if (($key eq 'tzhour') or ($key eq 'tzminute')) {
+		if ($key eq 'tzhour') {
+			$delta = $value * 3600 - $self->{tz};
+		}
+		else {
+			$delta = $value * 60   - $self->{tz};
+		}
+		# print "  STORE: TZ $key $value : delta = $delta [ $self->{tz} ]\n";
+		FETCH($self, 'epoch') unless exists $self->{epoch};
+		$self->{epoch} += $delta;
+		$self->{tz} += $delta;
+		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+		return;
+	}
 	if ($key eq 'epoch') {
-		# print "  STORE: epoch: ", 0+$self," remove other keys\n";
+		# print "  STORE: epoch:  remove all other keys\n";
+		$self->{epoch} = $value;
 		# remove all other keys (now invalid)
-		$Date{ 0 + $self } = { epoch => $value };	
+		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
 		return;
 	}
 	if ($key eq 'month') {
-		# print "  STORE: month: ", 0+$self," remove epoch\n";
-		# remove epoch key (now invalid)
-		delete $Date{ 0 + $self }{epoch}; 	
+		return if (exists $self->{month}) and ($self->{month} == $value);
+		# print "  STORE: month:  remove epoch\n";
+
+		delete $self->{epoch}; 	
+		delete $self->{weekday}; 	
+		delete $self->{yearday}; 	
+		delete $self->{week}; 	
+		delete $self->{weekyear}; 	
+
 		if (($value >= $Min{$key}) and ($value <= $Max{$key})) {
-			$Date{ 0 + $self }{$key} = $value;
+			$self->{$key} = $value;
 			return;
 		}
 		# print "  STORE: month overflow: $value\n";
 		$value -= 1;
-		$Date{ 0 + $self }{year} += int( $value / 12);
-		$Date{ 0 + $self }{month} = 1 + $value % 12;
+		$self->{year} += int( $value / 12);
+		$self->{month} = 1 + $value % 12;
 		return;
 	}
 	if ($key eq 'year') {
-		# print "  STORE: year: ", 0+$self," remove epoch\n";
-		# remove epoch key (now invalid)
-		delete $Date{ 0 + $self }{epoch}; 	
-		$Date{ 0 + $self }{year} = $value;
+		return if (exists $self->{year}) and ($self->{year} == $value);
+		# print "  STORE: year: remove epoch\n";
+
+		delete $self->{epoch}; 	
+		delete $self->{weekday}; 	
+		delete $self->{yearday}; 	
+		delete $self->{week}; 	
+		delete $self->{weekyear}; 	
+
+		$self->{year} = $value;
+		return;
+	}
+	if ($key eq 'weekyear') {
+		# print "  STORE: weekyear\n";
+		my $week =     exists $self->{week} ?     $self->{week} :     FETCH($self, 'week');
+		my $weekyear = exists $self->{weekyear} ? $self->{weekyear} : FETCH($self, 'weekyear');
+		FETCH($self, 'epoch') unless exists $self->{epoch};
+		$self->{epoch} += 52 * $Mult{week} * ($value - $weekyear);
+		%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
+		my $week2 =    FETCH($self, 'week');
+		while ($week2 != $week) {
+			STORE($self, 'week', $week2 + ($value <=> $weekyear) );
+			$week2 =   FETCH($self, 'week');
+			# print "  STORE: weekyear: week now is $week2\n";
+		}
+		# $self->{weekyear} = $value;
 		return;
 	}
 	# all other keys
-	if ( exists $Date{ 0 + $self }{$key} ) {
-		$delta = $value - $Date{ 0 + $self }{$key};
+
+	unless ( exists $self->{$key} ) {
+		# print "  STORE: create $key\n";
+		FETCH($self, $key);
 	}
-	else {
-		$delta = $value;
-	}
-	if (($value >= $Min{$key}) and ($value <= $Max{$key})) {
-		$Date{ 0 + $self }{epoch} += $delta * $Mult{$key} if exists $Date{ 0 + $self }{epoch};
-		$Date{ 0 + $self }{$key}  =  $value;
+	$delta = $value - $self->{$key};
+
+	if (($value >= $Min{$key}) and ($value <= $Max{$key}) and 
+		($key ne 'weekday') and ($key ne 'yearday') and ($key ne 'week')) {
+		$self->{epoch} += $delta * $Mult{$key} if exists $self->{epoch};
+		$self->{$key}  =  $value;
+		# update dependencies
+		if ($key eq 'day') {
+			delete $self->{weekday}; 	
+			delete $self->{yearday};
+			delete $self->{weekyear};
+			delete $self->{week}; 	
+		}
 		return;
 	}
 	# handle overflow
 	# print "  STORE: $key overflow: $value\n";
 	# init epoch key
-	if ( exists $Date{ 0 + $self }{epoch} ) {
-		$epoch = $Date{ 0 + $self }{epoch};
+	unless ( exists $self->{epoch} ) {
+		# print "  STORE: create epoch\n";
+		FETCH($self, 'epoch');
+		# print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
 	}
-	else {
-		$epoch = FETCH($self, 'epoch');
-	}
-	# print "  STORE: ", 0+$self," remove all except epoch, $epoch [ $value * $Mult{$key} ] \n";
-	$epoch += $delta * $Mult{$key};
+	# print "  STORE: remove all except epoch, $self->{epoch} [ $delta * $Mult{$key} ] \n";
+	$self->{epoch} += $delta * $Mult{$key};
+	# print "  STORE: epoch is $self->{epoch} ",join(':',gmtime($self->{epoch})),"\n";
 	# remove all other keys (now invalid)
-	$Date{ 0 + $self } = { epoch => $epoch };	
+	%{$self} = ( epoch => $self->{epoch}, tz => $self->{tz} );	
 	return;
 }
 
@@ -99,49 +151,84 @@ sub FETCH {
 	my ($self, $key) = @_; 
 	# my $a = 0 + $self;
 	# printf (" %0X ", $a);
-	# print "FETCH: ", 0+$self," $key\n";
-	if (exists($Date{ 0 + $self }{$key}) ) {
-		$_ = $Date{ 0 + $self }{$key};
-		$_ = '0' . (0 + $_) if ($_ >= 0) && ($_ < 10);
-		return $_;
-	}
-	# create key if possible
-	if (( $key eq 'epoch') or not exists $Date{ 0 + $self }{epoch} ) {
-		# print "  FETCH: create epoch\n";
-		my ($year, $month, $day, $hour, $minute, $second);
-		$day =   exists $Date{ 0 + $self }{day} ?
-			$Date{ 0 + $self }{day}   > 0 ? $Date{ 0 + $self }{day} : 1 : 1;
-		$month =  exists $Date{ 0 + $self }{month} ?
-			$Date{ 0 + $self }{month} > 0 ? $Date{ 0 + $self }{month} - 1 : 0 : 0;
-		$year =   exists $Date{ 0 + $self }{year} ?
-			$Date{ 0 + $self }{year} >= 1900 ? $Date{ 0 + $self }{year} - 1900 : 0 : 0;
-		$hour =   exists $Date{ 0 + $self }{hour} ?
-			$Date{ 0 + $self }{hour} : 0;
-		$minute = exists $Date{ 0 + $self }{minute} ?
-			$Date{ 0 + $self }{minute} : 0;
-		$second = exists $Date{ 0 + $self }{second} ?
-			$Date{ 0 + $self }{second} : 0;
-		# print " ($year, $month, $day) \n";
-	    $Date{ 0 + $self }{epoch} = timegm( $second, $minute, $hour, $day, $month, $year );
-		return $Date{ 0 + $self }{epoch} if $key eq 'epoch';
-	}
-	# print "  FETCH: create $key and others\n";
-	(	$Date{ 0 + $self }{second},	$Date{ 0 + $self }{minute},	$Date{ 0 + $self }{hour},
-		$Date{ 0 + $self }{day},	$Date{ 0 + $self }{month},	$Date{ 0 + $self }{year},
-		$Date{ 0 + $self }{isdst} ) = gmtime($Date{ 0 + $self }{epoch});
-	$Date{ 0 + $self }{year} += 1900;
-	$Date{ 0 + $self }{month}++;
+	my ($value);
+	$key = 'day' if $key eq 'monthday';
+	# print "FETCH:  $key\n";
 
-	$_ = $Date{ 0 + $self }{$key};
-	$_ = '0' . $_ if ($_ >= 0) && ($_ < 10);
-	return $_;
+	if ($key eq 'tz') {
+		my ($h, $m) = (FETCH($self, 'tzhour'), FETCH($self, 'tzminute'));
+		my $s = $self->{tz} < 0 ? '-' : '+';
+		# print "FETCH:  $key $s $h $m \n";
+		return $s . substr($h,1,2) . sprintf("%02d", abs($m));
+	}
+	if ($key eq 'tzhour') {
+		$value = int($self->{tz} / 3600);
+		return ($value >= 0) ? sprintf("+%02d", $value) : sprintf("%+03d", $value);
+	}
+	if ($key eq 'tzminute') {
+		$value = int ( ( $self->{tz} - 3600 * int($self->{tz} / 3600) ) / 60 );
+		return ($value >= 0) ? sprintf("%02d", $value) : sprintf("%+03d", $value);
+	}
+
+	unless (exists($self->{$key}) ) {
+		# create key if possible
+		if (( $key eq 'epoch') or not exists $self->{epoch} ) {
+			# print "  FETCH: create epoch\n";
+			my ($year, $month, $day, $hour, $minute, $second);
+			$day =    exists $self->{day} ?    $self->{day}    : 1;
+			$month =  exists $self->{month} ?  $self->{month} - 1   : 0;
+			$year =   exists $self->{year} ?   $self->{year} - 1900 : 0;
+			$hour =   exists $self->{hour} ?   $self->{hour}   : 0;
+			$minute = exists $self->{minute} ? $self->{minute} : 0;
+			$second = exists $self->{second} ? $self->{second} : 0;
+			# print " ($year, $month, $day) \n";
+		    $self->{epoch} = timegm( $second, $minute, $hour, $day, $month, $year );
+			return $self->{epoch} if $key eq 'epoch';  # ???
+		}
+		# print "  FETCH: create $key and others\n";
+		(	$self->{second},  $self->{minute},	$self->{hour},
+			$self->{day},     $self->{month},	$self->{year},
+			$self->{weekday}, $self->{yearday} ) = gmtime($self->{epoch});
+		$self->{year} += 1900;
+		$self->{month}++;
+		$self->{weekday} = 7 unless $self->{weekday};
+		$self->{yearday}++;
+
+		$self->{week} = int ( ($self->{yearday} - $self->{weekday} + 10) / 7 );
+		if ($self->{yearday} > 361) {
+			# print "  FETCH: week overflow\n";
+			# find out next year's jan-04 weekday
+			tie my %tmp, 'Date::Tie';
+			# jan-04 weekday:  1  2  3  4  5  6  7
+			my @wk1 = qw ( 28 29 30 31 32 26 27 28  );
+			%tmp = ( year => ($self->{year} + 1), month => '01', day => '04' );
+			my $last_day = $wk1[$tmp{weekday}];
+			# print "  FETCH: 1st week ",$tmp{year},"-jan-04 is $tmp{weekday} - after dec-$last_day is W01\n";
+			$self->{week} = 1 if ($self->{day} >= $last_day);
+		}
+
+		$self->{weekyear} = $self->{year};
+		$self->{weekyear}++ if ($self->{week} < 2) and ($self->{month} > 2);
+	} # create keys
+
+	$value = $self->{$key};
+	$value = '0' . $value if ($value >= 0) && ($value < 10) && ($key ne 'weekday');
+	$value = '0' . $value if (length($value) < 3) && ($key eq 'yearday');
+	return $value;
 }
 
-sub new {
-	my $class = shift;
-	my $self = bless {}, $class;
+sub TIEHASH  { 
+	# print "  TIE $_[0] $_[1]\n";
+	my $self = bless {}, shift;
 	my ($tmp1, $tmp2);
-    tie %$self, 'Date::Tie';
+	( $self->{second},  $self->{minute}, $self->{hour},
+	  $self->{day},     $self->{month},  $self->{year},
+	  $self->{weekday}, $self->{yearday} ) = gmtime();
+	$self->{year} += 1900;
+	$self->{month}++;
+	$self->{weekday} = 7 unless $self->{weekday};
+	$self->{yearday}++;
+	$self->{tz} = 0;
 	while ($#_ > -1) {
 		($tmp1, $tmp2) = (shift, shift);
 		$self->{$tmp1} = $tmp2;
@@ -149,47 +236,105 @@ sub new {
 	return $self;
 }
 
+sub new {
+	my $class = shift;
+	my $self = bless {}, $class;
+	# print "  NEW\n";
+    tie %$self, 'Date::Tie', @_;
+	return $self;
+}
+
 # This is for debugging only !
-sub iso { my $self = shift; return $self->{year} . '-' . $self->{month} . '-' . $self->{day}; }
+sub iso { my $self = shift; return $self->{year} . '-' . $self->{month} . '-' . $self->{day} . " $self->{weekyear}-W$self->{week}-$self->{weekday}"; }
+sub debug { my $self = shift; return join(':',%{$self}); }
 
 1;
 
 __END__
 
 =head1 NAME
-    Date::Tie - a perlish interface to dates
+    Date::Tie - a perlish interface to ISO dates
 
 =head1 SYNOPSIS
 	use Date::Tie;
 
-    tie %date, 'Date::Tie';
-	%date = { year => 2001, month => 11, day => '09' };
+    tie my %date, 'Date::Tie', year => 2001, month => 11, day => 9;
 	$date{year}++;
 	$date{month} += 12;    # 2003-11-09
 
 	# you can also do this
-	$date = Date::Tie->new( year => 2001, month => 11, day => '09' );
+	my $date = Date::Tie->new( year => 2001, month => 11, day => 9 );
 	$date->{year}++;
 	$date->{month} += 12;  # 2003-11-09
+
+    $date{weekday} = 0;    # sunday at the start of this week
+    $date{weekday} = 7;    # sunday at the end of this week
+    $date{weekday} = 14;   # sunday next week 
+
+	$date{tz} = '-0300';   # change timezone
+	$date{tzhour}++;       # increment timezone
 
 =head1 DESCRIPTION
 
 Date::Tie is an attempt to simplify date operations syntax.
 
 Date::Tie manages a hash containing the keys: 
-epoch, year, month, day, hour, minute, and second.
-Whenever a new value is stored in a key, it may overflow to 
-the other keys following the common (ISO) date rules. 
+epoch, year, month, day, hour, minute, second,
+yearday, week, weekday, weekyear, tz, tzhour, tzminute. 
+
+'week' is the week number in the year.
+
+'day' and 'monthday' refer to the same entity. 
+
+'weekyear' is the year number when using week notation.
+It is often NOT EQUAL to 'year'. 
+Changing 'weekyear' will leave you with the same week and weekday, 
+while changing 'year' will leave you with the same month and monthday.
+
+'epoch' is the local epoch. It changes when timezone ('tzhour', 'tzminute') changes.
+
+'tz' is the timezone as hundreds (-0030). It is not always the same as
+(tzhour . tzminute), which in this case would be +00-30.
+
+Whenever a new value is stored, it will change 
+the other keys following the ISO date rules. 
 
 For example: 
 	 print $a{hour}, ":", $a{minute};     #  00 59
 	 $a{minute}++;
 	 print $a{hour}, ":", $a{minute};     #  01 00
 
+The hash is created with the current value of gmtime, and timezone +0000.
+
+=head1 ISO 8601 BASICS
+
+Day of year starts with 001. 
+
+Day of week starts with 1 and is a monday.
+
+Week starts with 01 and is the first week of the
+year that has a thursday. 
+Week 01 often begins in the previous year.
+
+=head1 CAVEATS
+
+Reading time zone -0030 with ('tzhour' . 'tzminute') gives +00-30. 
+Use 'tz' to get -0030.
+
+=head1 TODO
+
+	test fractions of seconds
+
 =head1 HISTORY
-        
+       
+	0.04 yearday, weekday, week, weekyear
+	     better storage
+	     initializes to 'now'.
+	     timezones
+	     more tests
+ 
 	0.03 STORE rewritten
-		examples work
+	     examples work
 
 	0.02 Make it a real module
 

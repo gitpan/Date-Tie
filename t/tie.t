@@ -19,8 +19,7 @@ print "not " if $date{year} . $date{month} . $date{day} ne '20031109';
 print "ok 2\n";
 
 # example 3
-    tie %a, 'Date::Tie';
-	($a{hour}, $a{minute}) = (0, 59);
+    tie %a, 'Date::Tie', hour => 0, minute => 59;
 	$a{minute}++;
 print "not " if $a{hour} . $a{minute}  ne '0100';
 print "ok 3\n";
