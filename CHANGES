@@ -1,5 +1,8 @@
 Date::Tie
 
+0.14
+ - catches overflow when calling timegm (fix error when using perl 5.8.0)
+
 0.13
  - clears a Win32 warning when making %a = %c;
 

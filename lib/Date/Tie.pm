@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.13';
+$VERSION =  '0.14';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -368,8 +368,19 @@ sub FETCH {
             $hour =   exists $self->{hour} ?   $self->{hour}   : 0;
             $minute = exists $self->{minute} ? $self->{minute} : 0;
             $second = exists $self->{second} ? $self->{second} : 0;
-            # print " ($year, $month, $day) \n";
-            $self->{epoch} = timegm( $second, $minute, $hour, $day, $month, $year );
+            #print " ($year, $month, $day) \n";
+
+            # TODO: test for month overflow (error when using perl 5.8.0)
+            #    Day '31' out of range 1..30 at lib/Date/Tie.pm line 383
+            eval { $self->{epoch} = timegm( $second, $minute, $hour, $day, $month, $year ); };
+            # warn $@ if $@;
+            while ($@ =~ /Day \'\d+\' out of range/ ) {
+                $day = $self->{day}--;
+                eval { $self->{epoch} = timegm( $second, $minute, $hour, $day, $month, $year ); };
+                # warn $@ if $@;
+            }
+            # print " epoch = $self->{epoch} \n";
+
             return $self->{epoch} if $key eq 'epoch';  # ???
         }
         # print "  FETCH: create $key and others\n";
