@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.14';
+$VERSION =  '0.14_01';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -38,6 +38,7 @@ $Infinity = 999_999_999_999;
 sub STORE { 
     my ($self, $key, $value) = @_; 
     my ($delta);
+    # print "STORE KEY $key VALUE $value\n";
     $key = 'day' if $key eq 'monthday';
     $value =~ tr/\,/\./;  # translate comma to dot
     $value += 0;
@@ -442,9 +443,13 @@ sub TIEHASH  {
 
 sub new {
     my $class = shift;
-    my $self = bless {}, $class;
-    # print "  NEW\n";
-    tie %$self, 'Date::Tie', @_;
+    my @parent;
+    @parent = %$class if ref $class;
+    push @parent, @_;
+    # print "NEW PARENT @parent CLASS $class=",ref $class,"\n";
+    my $self = bless {}, ref $class || $class;
+    # print "  NEW ",ref $self,"\n";
+    tie %$self, 'Date::Tie', @parent;
     return $self;
 }
 
@@ -664,6 +669,17 @@ These are some ways to make a copy of C<%d>:
 
     # set timezone, then fractional epoch
     tie my %b, 'Date::Tie', tz => $d{tz}, frac_epoch => $d{frac_epoch};
+
+In OO style you can use C<new> to make a copy:
+
+    # make a copy of object
+    my $b = $d->new;
+
+    # make a copy of object, then set the copy to next month
+    ($b = $d->new)->{month}++;
+
+    # make a copy of object, then set the copy to month 3
+    $b = $d->new(month => 3);
 
 If you change I<month>, then I<day> will be adjusted to fit that month:
 

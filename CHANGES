@@ -1,5 +1,8 @@
 Date::Tie
 
+0.14_01
+ - can make new() from an existing object ("clone")
+
 0.14
  - catches overflow when calling timegm (fix error when using perl 5.8.0)
 

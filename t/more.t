@@ -13,7 +13,7 @@ sub test {
 	$test++;
 }
 
-print "1..24\n";
+print "1..30\n";
 
 $d{year} = 2001;
 $d{month} = 10;
@@ -109,5 +109,19 @@ $date2->{day} = 29;
 test "$date1->{day}$date1->{month}", "2904";
 test "$date2->{day}$date1->{month}", "2904";
 
+my $date3;
+
+$date3 = $date1->new;
+$date3->{month}++;
+test "$date1->{day}$date1->{month}", "2904";
+test "$date3->{day}$date3->{month}", "2905";
+
+( $date3 = $date1->new )->{month}++;
+test "$date1->{day}$date1->{month}", "2904";
+test "$date3->{day}$date3->{month}", "2905";
+
+$date3 = $date1->new(month => 3);
+test "$date1->{day}$date1->{month}", "2904";
+test "$date3->{day}$date3->{month}", "2903";
 
 1;
