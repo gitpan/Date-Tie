@@ -1,0 +1,7 @@
+Date::Tie
+
+0.08 - changing 'month' after changing 'day' would reset
+       day to '1'
+
+0.07 - better docs
+

@@ -3,6 +3,7 @@ lib/Date/Tie.pm
 MANIFEST
 Makefile.PL
 Readme
+CHANGES
 
 t/tie.t
 t/more.t

@@ -11,7 +11,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Max %Min %Mult $Infinity $VERSION );
 @EXPORT =   qw( new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.07';
+$VERSION =  '0.08';
 $Infinity = 999_999_999_999;
 %Mult = (   day => 24 * 60 * 60,       hour => 60 * 60,         minute => 60, second => 1,
             monthday => 24 * 60 * 60,  weekday => 24 * 60 * 60, yearday => 24 * 60 * 60, 
@@ -62,6 +62,7 @@ sub STORE {
     if ($key eq 'month') {
         return if (exists $self->{month}) and ($self->{month} == $value);
         # print "  STORE: month:  remove epoch\n";
+	$self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
         delete $self->{weekday};     
@@ -80,7 +81,7 @@ sub STORE {
             $self->{month} = 1 + $value % 12;
         }
 
-        $self->FETCH('day');
+        # $self->FETCH('day');
         if ($self->{day} >= 29) {
             my ($tmp_month) = $self->FETCH('month');
             # check for day oveflow
