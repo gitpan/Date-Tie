@@ -12,9 +12,9 @@ use POSIX;  # floor()
 use Time::Local qw( timegm );
 # use Carp;
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
-@EXPORT =   qw( new iso );
+@EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.10';
+$VERSION =  '0.11';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
