@@ -1,3 +1,4 @@
+#!/usr/bin/perl -w
 
 print "1..3\n";
 

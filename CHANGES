@@ -1,5 +1,8 @@
 Date::Tie
 
+0.16
+ - utc_epoch key.  Dan Wright.
+
 0.15
  - can make new() from an existing object ("clone")
 

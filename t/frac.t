@@ -1,3 +1,5 @@
+#!/usr/bin/perl -w
+
 use Date::Tie;
 
 my $test = 1;

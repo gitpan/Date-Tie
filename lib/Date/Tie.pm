@@ -14,7 +14,7 @@ use Time::Local qw( timegm );
 use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @EXPORT =   qw( );  # new iso );
 @ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.15';
+$VERSION =  '0.16';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -168,7 +168,7 @@ sub STORE {
         return;
     }
     if (($key eq 'tzhour') or ($key eq 'tzminute')) {
-        $self->{tz100} = 0 unless exists $self->{tz100};   # this will clear a Win32 warning
+        $self->{tz100} = 0 unless exists $self->{tz100};  
         if ($key eq 'tzhour') {
             $delta = $value * 3600 - $self->{tz100};
         }
@@ -185,6 +185,12 @@ sub STORE {
         return;
     }
 
+    if ($key eq 'utc_epoch') {
+        %{$self} = ( utc_epoch => $value, epoch => $value + ($self->{tz100} || 0), 
+                     tz100 => $self->{tz100}, frac => $self->{frac} );
+        return;
+    }
+
     if ($key eq 'epoch') {
         # print "  STORE: epoch:  remove all other keys\n";
         $self->{epoch} = $value;
@@ -198,6 +204,7 @@ sub STORE {
         $self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
+        delete $self->{utc_epoch};
         delete $self->{weekday};     
         delete $self->{yearday};     
         delete $self->{week};     
@@ -235,6 +242,7 @@ sub STORE {
         $self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
+        delete $self->{utc_epoch};
         delete $self->{weekday};     
         delete $self->{yearday};     
         delete $self->{week};     
@@ -392,6 +400,7 @@ sub FETCH {
         $self->{month}++;
         $self->{weekday} = 7 unless $self->{weekday};
         $self->{yearday}++;
+        $self->{utc_epoch} = $self->{epoch} - ( $self->{tz100} || 0 );
 
         $self->{week} = POSIX::floor ( ($self->{yearday} - $self->{weekday} + 10) / 7 );
         if ($self->{yearday} > 361) {
@@ -412,6 +421,7 @@ sub FETCH {
 
     $value = $self->{$key};
     return $value if $key eq 'weekday';
+    return $value if $key eq 'utc_epoch';
     return sprintf("%02d", $value) if $key ne 'yearday';
     return sprintf("%03d", $value);
 
@@ -538,7 +548,8 @@ with timezone C<+0000> and with fractional seconds set to zero.
 Date::Tie manages a hash containing the keys: 
 
 I<year>, I<month>, I<day>, I<hour>, I<minute>, I<second>,
-I<yearday>, I<week>, I<weekday>, I<weekyear>, I<epoch>, 
+I<yearday>, I<week>, I<weekday>, I<weekyear>, 
+I<epoch>, I<utc_epoch>,
 I<tz>, I<tzhour>, I<tzminute>,
 I<frac_hour>, I<frac_minute>, I<frac_second>, I<frac_epoch>,
 I<frac>. 
@@ -578,6 +589,12 @@ for dates outside the years 1970-2038.
 B<I<epoch>> is the local epoch. That is, time 
 C<20020101T000000+0300> is the same epoch as 
 C<20020101T000000+0600>.
+
+=item I<utc_epoch>
+
+The system epoch in UTC time, that is, in timezone C<+0000>.
+
+See also the C<epoch> key.
 
 =item I<tz>, I<tzhour>, I<tzminute>
 
@@ -705,6 +722,16 @@ C<http://www.cl.cam.ac.uk/~mgk25/iso-time.html>
 =head1 AUTHOR
 
 Flávio Soibelmann Glock (fglock@pucrs.br)
+
+=head1 CREDITS
+
+Original idea based on a mail by dLux.
+
+Eduardo M. Cavalcanti and 
+Henrique Pantarotto 
+contributed bugfixes.
+
+Dan Wright created the C<utc_epoch> key.
 
 =cut
 
