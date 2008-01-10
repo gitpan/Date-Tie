@@ -21,13 +21,15 @@ Date::Tie TODO
     make implied_century (2-digit year) and implied_decade (1-digit year),
     and century (2-digit) and decade (3-digit)
 
-    dates outside 1970-2038: autoload Date::ICal (?)
+    dates outside 1970-2038: autoload Date::ICal or DateTime (?)
+    optionally use DateTime timezone names
     implement 'expanded representation'
 
     access environment for timezone initialization
 
     accept 'Z' as tz=0000
 
+    make a 'print' or 'string' method; make "" work.
     make a {template} key for print format (?)
     example: 
         '{implied_century}:{month}:{day}'
@@ -35,8 +37,6 @@ Date::Tie TODO
         '{tz%Z}'
 
     accept 'ordinal_day' as synonym for yearday (?)
-
-    remove debugging code
 
     check if it actually needs $Infinity, %Mult, %Max, %Min
 
@@ -46,9 +46,5 @@ Date::Tie TODO
 
     make a 'copy' method
 
-    make a 'print' or 'string' method; make "" work.
-
     make '+' accept comma as fractional separator
-
-    use 'autoload' 
 

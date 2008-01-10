@@ -1,11 +1,14 @@
 Date::Tie
 
-0.17
+0.18  2008-01-09
+ - fixed week number.  Jean via http://rt.cpan.org/Ticket/Display.html?id=32071 
+
+0.17  2003-07-28
  - fixes utc_epoch handling.  Dan Wright.
  - removed some debugging code
  - added reference to DateTime
 
-0.16
+0.16  2003-05-14
  - utc_epoch key.  Dan Wright.
 
 0.15

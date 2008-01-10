@@ -10,11 +10,9 @@ use Tie::Hash;
 use Exporter;
 use POSIX;  # floor()
 use Time::Local qw( timegm );
-# use Carp;
-use vars    qw( @ISA @EXPORT %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
-@EXPORT =   qw( );  # new iso );
-@ISA =      qw( Tie::StdHash Exporter ); 
-$VERSION =  '0.17';
+use vars    qw( @ISA %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
+@ISA =      qw( Tie::StdHash ); 
+$VERSION =  '0.18';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -38,7 +36,6 @@ $Infinity = 999_999_999_999;
 sub STORE { 
     my ($self, $key, $value) = @_; 
     my ($delta);
-    # print "STORE KEY $key VALUE $value\n";
     $key = 'day' if $key eq 'monthday';
     $value =~ tr/\,/\./;  # translate comma to dot
     $value += 0;
@@ -56,23 +53,16 @@ sub STORE {
 
         my ($frac) = $value =~ /\.(.*)/;  # get fractional part as an 'integer'
         $frac = 0 unless defined $frac;       # or get zero 
-        # print "STORE:  (fractional) $key, $value\n";
 
         if ($key eq 'frac') {
             if (($value < 0) or ($value >= 1)) {
                 # fractional overflow
                 $self->STORE('second', $self->FETCH('second') + $i_value);
-                # print " value $value $frac \n";
                 # make sure frac is a positive number
                 my $len_frac = length($frac);
                 $frac = ('1' . '0' x $len_frac ) - $frac if ($value < 0) and ($frac != 0);
                 $frac = '0' x ($len_frac - length($frac)) . $frac;
-                # print " value $value $frac \n";
             }
-            # if ($frac == 0) {
-            #    $self->{frac} = '.0';
-            #    return;
-            # }
             $self->{frac} = '.' . $frac;
             return;
         }
@@ -91,8 +81,6 @@ sub STORE {
             # round last digit if the number is a fraction of '3': 1/3 1/9 ...
             # 9 digits is enough for nano-second resolution...
             if (length($frac) > 9) {
-                # print "  *** Resolution overflow *** \n";
-                # print "  test: 60 * $frac = ", 60 * ( '.' . $frac ) , " ", 3600 * ( '.' . $frac ) , "\n";
                 my ($last_frac, $last_mult) = ($frac, $mult);
 
                 foreach(0..3) {
@@ -106,20 +94,17 @@ sub STORE {
                     #   000.$
                     if ($frac =~ /000.$/) {
                         $frac =~ s/.$//;
-                        # print "   last digit rounding to $frac\n";
                         last;
                     }
                     elsif ($frac =~ /999.$/) {
                         my ($zeroes, $digit) = $frac =~ /\.(.*)(.)$/;
                         $digit = '0.' . '0' x (length($zeroes)-1) . sprintf("%02d", 10 - $digit);
                         $frac += $digit;
-                        # print "   last digit rounding up to $frac\n";
                         last;
                     }
                     else {
                         $frac *= 3;
                         $mult /= 3;
-                        # print "   *3 = $frac\n";
                     }
 
                 } # foreach
@@ -133,26 +118,16 @@ sub STORE {
             if ($not_frac_key eq 'minute') {
                 $self->STORE('second', 0);
             }
-
-            # print $self->FETCH($key), "\n";
-            # print "  value $value , $frac * $mult = ",$mult * $frac,"\n";
-            # print "  value $value $frac \n";
             $self->STORE('frac', $mult * $frac);
-            # print "  [2]$key ", $self->FETCH($key), "\n";
 
             return;
         }
 
         # error - this unit does not allow a fractional part
-        # carp "Fractional value $value is not allowed for \{$key\}" . ( exists $Frac{'frac_'.$key} ? " but you might use \{frac_$key\} instead," : "," );
         $key =~ s/frac_//;
-        # $value = $i_value;
         $value = POSIX::floor($value + 0.5);    # round to integer
-        # print " using $key $value instead.\n";
 
     }   # end: has fractional part
-
-    # print "STORE:  (integer) $key, $value\n";
 
     if ($key eq 'tz') {
         # note: this must be "int", not "floor" !!
@@ -180,7 +155,6 @@ sub STORE {
     }
 
     if ($key eq 'epoch') {
-        # print "  STORE: epoch:  remove all other keys\n";
         $self->{epoch} = $value;
         # remove all other keys (now invalid)
         %{$self} = ( epoch => $self->{epoch}, tz100 => $self->{tz100}, frac => $self->{frac} );    
@@ -188,7 +162,6 @@ sub STORE {
     }
     if ($key eq 'month') {
         return if (exists $self->{month}) and ($self->{month} == $value);
-        # print "  STORE: month:  remove epoch\n";
         $self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
@@ -200,24 +173,19 @@ sub STORE {
 
         if (($value >= $Min{$key}) and ($value <= $Max{$key})) {
             $self->{$key} = $value;
-            # return;
         }
         else {
-            # print "  STORE: month overflow: $value\n";
             $value -= 1;
             $self->{year} += POSIX::floor( $value / 12);
             $self->{month} = 1 + $value % 12;
         }
 
-        # $self->FETCH('day');
         if ($self->{day} >= 29) {
             my ($tmp_month) = $self->FETCH('month');
             # check for day overflow
-            # print " check \n";
             $self->STORE('day',$self->{day});
             $self->FETCH('month');
             if ($tmp_month != $self->{month}) {
-                # print "  overflow! \n";
                 $self->STORE('day', 0);
             }
         }
@@ -226,7 +194,6 @@ sub STORE {
     }
     if ($key eq 'year') {
         return if (exists $self->{year}) and ($self->{year} == $value);
-        # print "  STORE: year: remove epoch\n";
         $self->FETCH('day') unless exists $self->{day};  # save 'day' before deleting epoch!
 
         delete $self->{epoch};     
@@ -241,11 +208,9 @@ sub STORE {
         if ($self->{day} >= 29) {
             my ($tmp_month) = $self->FETCH('month');
             # check for day overflow
-            # print " check ";
             $self->STORE('day',$self->{day});
             $self->FETCH('month');
             if ($tmp_month != $self->{month}) {
-                # print " yr-overflow $tmp_month != ", $self->{month}," \n";
                 $self->STORE('day', 0);
             }
         }
@@ -253,7 +218,6 @@ sub STORE {
         return;
     }
     if ($key eq 'weekyear') {
-        # print "  STORE: weekyear\n";
         my $week =     exists $self->{week} ?     $self->{week} :     FETCH($self, 'week');
         my $weekyear = exists $self->{weekyear} ? $self->{weekyear} : FETCH($self, 'weekyear');
         FETCH($self, 'epoch') unless exists $self->{epoch};
@@ -263,15 +227,12 @@ sub STORE {
         while ($week2 != $week) {
             STORE($self, 'week', $week2 + ($value <=> $weekyear) );
             $week2 =   FETCH($self, 'week');
-            # print "  STORE: weekyear: week now is $week2\n";
         }
-        # $self->{weekyear} = $value;
         return;
     }
     # all other keys
 
     unless ( exists $self->{$key} ) {
-        # print "  STORE: create $key\n";
         FETCH($self, $key);
     }
     $delta = $value - $self->{$key};
@@ -293,10 +254,8 @@ sub STORE {
         return;
     }
     # handle overflow
-    # print "  STORE: $key overflow: $value\n";
     # init epoch key
     unless ( exists $self->{epoch} ) {
-        # print "  STORE: create epoch\n";
         FETCH($self, 'epoch');
     }
     $self->{epoch} += $delta * $Mult{$key};
@@ -307,14 +266,10 @@ sub STORE {
 
 sub FETCH { 
     my ($self, $key) = @_; 
-    # my $a = 0 + $self;
-    # printf (" %0X ", $a);
     my ($value);
     $key = 'day' if $key eq 'monthday';
-    # print "FETCH:  $key\n";
 
     if ($key eq 'frac') {
-        # return substr($self->{frac},1);
         return $self->{frac};
     }
     if (exists $Frac{$key}) {
@@ -335,10 +290,8 @@ sub FETCH {
         return $value;
     }
     if ($key eq 'tz') {
-        # print "FETCH:  $key = $self->{tz100} \n";
         my ($h, $m) = (FETCH($self, 'tzhour'), FETCH($self, 'tzminute'));
         my $s = $self->{tz100} < 0 ? '-' : '+';
-        # print "FETCH:  $key $self->{tz100} = $s $h $m \n";
         return $s . substr($h,1,2) . sprintf("%02d", abs($m));
     }
     if ($key eq 'tzhour') {
@@ -350,14 +303,13 @@ sub FETCH {
     if ($key eq 'tzminute') {
         my $s = $self->{tz100} < 0 ? '-' : '+';
         # note: this must be "int", not "floor" !!
-        $value = int ( ( $self->{tz100} - 3600 * int($self->{tz100} / 3600) ) / 60 );
+        $value = int( ( $self->{tz100} - 3600 * int($self->{tz100} / 3600) ) / 60 );
         return $s . sprintf("%02d", abs($value));
     }
 
     unless (exists($self->{$key}) ) {
         # create key if possible
         if (( $key eq 'epoch') or not exists $self->{epoch} ) {
-            # print "  FETCH: create epoch\n";
             my ($year, $month, $day, $hour, $minute, $second);
             $day =    exists $self->{day} ?    $self->{day}    : 1;
             $month =  exists $self->{month} ?  $self->{month} - 1   : 0;
@@ -365,7 +317,6 @@ sub FETCH {
             $hour =   exists $self->{hour} ?   $self->{hour}   : 0;
             $minute = exists $self->{minute} ? $self->{minute} : 0;
             $second = exists $self->{second} ? $self->{second} : 0;
-            #print " ($year, $month, $day) \n";
 
             # TODO: test for month overflow (error when using perl 5.8.0)
             #    Day '31' out of range 1..30 at lib/Date/Tie.pm line 383
@@ -376,12 +327,9 @@ sub FETCH {
                 eval { $self->{epoch} = timegm( $second, $minute, $hour, $day, $month, $year ); };
                 # warn $@ if $@;
             }
-            # print " epoch = $self->{epoch} \n";
-
             return $self->{epoch} if $key eq 'epoch';  # ???
         }
-        # print "  FETCH: create $key and others\n";
-        (    $self->{second},  $self->{minute},    $self->{hour},
+        (   $self->{second},  $self->{minute},   $self->{hour},
             $self->{day},     $self->{month},    $self->{year},
             $self->{weekday}, $self->{yearday} ) = gmtime($self->{epoch});
         $self->{year} += 1900;
@@ -390,21 +338,23 @@ sub FETCH {
         $self->{yearday}++;
         $self->{utc_epoch} = $self->{epoch} - ( $self->{tz100} || 0 );
 
-        $self->{week} = POSIX::floor ( ($self->{yearday} - $self->{weekday} + 10) / 7 );
+        $self->{week} = POSIX::floor( ($self->{yearday} - $self->{weekday} + 10) / 7 );
         if ($self->{yearday} > 361) {
-            # print "  FETCH: week overflow\n";
             # find out next year's jan-04 weekday
-            tie my %tmp, 'Date::Tie';
-            # jan-04 weekday:  1  2  3  4  5  6  7
-            my @wk1 = qw ( 28 29 30 31 32 26 27 28  );
-            %tmp = ( year => ($self->{year} + 1), month => '01', day => '04' );
+            tie my %tmp, 'Date::Tie', year => ($self->{year} + 1), month => '01', day => '04';
+            # jan-04 weekday: 1  2  3  4  5  6  7
+            my @wk1 = qw( 29 32 32 32 32 31 30 29 );
             my $last_day = $wk1[$tmp{weekday}];
-            # print "  FETCH: 1st week ",$tmp{year},"-jan-04 is $tmp{weekday} - after dec-$last_day is W01\n";
             $self->{week} = 1 if ($self->{day} >= $last_day);
+        }
+        if ( $self->{week} == 0 ) {
+            my @t = gmtime( timegm( 0,0,0, 31,11,($self->{year} - 1) ) );
+            $self->{week} = POSIX::floor( ($t[7] - $t[6] + 11) / 7 );
         }
 
         $self->{weekyear} = $self->{year};
-        $self->{weekyear}++ if ($self->{week} < 2) and ($self->{month} > 2);
+        $self->{weekyear}++ if ($self->{week} < 2)  and ($self->{month} > 10);
+        $self->{weekyear}-- if ($self->{week} > 50) and ($self->{month} < 2);
     } # create keys
 
     $value = $self->{$key};
@@ -412,14 +362,9 @@ sub FETCH {
     return $value if $key eq 'utc_epoch';
     return sprintf("%02d", $value) if $key ne 'yearday';
     return sprintf("%03d", $value);
-
-    # $value = '0' . $value if ($value >= 0) && ($value < 10) && ($key ne 'weekday');
-    # $value = '0' . $value if (length($value) < 3) && ($key eq 'yearday');
-    # return $value;
 }
 
 sub TIEHASH  { 
-    # print "  TIE ", join(":", @_), "\n";
     my $self = bless {}, shift;
     my ($tmp1, $tmp2);
     $self->{frac} = '.0'; 
@@ -433,7 +378,6 @@ sub TIEHASH  {
     $self->{yearday}++;
     while ($#_ > -1) {
         ($tmp1, $tmp2) = (shift, shift);
-        # $self->{$tmp1} = $tmp2;
         STORE ($self, $tmp1, $tmp2);
     }
     return $self;
@@ -444,9 +388,7 @@ sub new {
     my @parent;
     @parent = %$class if ref $class;
     push @parent, @_;
-    # print "NEW PARENT @parent CLASS $class=",ref $class,"\n";
     my $self = bless {}, ref $class || $class;
-    # print "  NEW ",ref $self,"\n";
     tie %$self, 'Date::Tie', @parent;
     return $self;
 }
@@ -709,14 +651,15 @@ C<http://www.cl.cam.ac.uk/~mgk25/iso-time.html>
 
 =head1 AUTHOR
 
-Flávio Soibelmann Glock (fglock@pucrs.br)
+Flávio Soibelmann Glock (fglock@gmail.com)
 
 =head1 CREDITS
 
 Original idea based on a mail by dLux.
 
-Eduardo M. Cavalcanti and 
+Eduardo M. Cavalcanti, 
 Henrique Pantarotto 
+and Jean
 contributed bugfixes.
 
 Dan Wright created the C<utc_epoch> key.

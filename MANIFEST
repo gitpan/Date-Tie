@@ -15,3 +15,4 @@ t/timezone.t
 eg/example.pl
 eg/week.pl
 
+META.yml                                 Module meta-data (added by MakeMaker)

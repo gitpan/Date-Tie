@@ -26,9 +26,9 @@ Whenever a new value is stored in a key, it will change
 the other keys following the common (ISO) date rules. 
 
 For example: 
-	 print $a{hour}, ":", $a{minute};     #  00 59
+	 print $a{hour}, ":", $a{minute};     #  00:59
 	 $a{minute}++;
-	 print $a{hour}, ":", $a{minute};     #  01 00
+	 print $a{hour}, ":", $a{minute};     #  01:00
 
 AUTHOR
-    Flávio Soibelmann Glock (fglock@pucrs.br)
+    Flávio Soibelmann Glock (fglock@gmail.com)
