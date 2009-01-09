@@ -12,7 +12,7 @@ use POSIX;  # floor()
 use Time::Local qw( timegm );
 use vars    qw( @ISA %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @ISA =      qw( Tie::StdHash ); 
-$VERSION =  '0.18';
+$VERSION =  '0.19';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 
@@ -338,23 +338,25 @@ sub FETCH {
         $self->{yearday}++;
         $self->{utc_epoch} = $self->{epoch} - ( $self->{tz100} || 0 );
 
-        $self->{week} = POSIX::floor( ($self->{yearday} - $self->{weekday} + 10) / 7 );
-        if ($self->{yearday} > 361) {
-            # find out next year's jan-04 weekday
-            tie my %tmp, 'Date::Tie', year => ($self->{year} + 1), month => '01', day => '04';
-            # jan-04 weekday: 1  2  3  4  5  6  7
-            my @wk1 = qw( 29 32 32 32 32 31 30 29 );
-            my $last_day = $wk1[$tmp{weekday}];
-            $self->{week} = 1 if ($self->{day} >= $last_day);
-        }
-        if ( $self->{week} == 0 ) {
-            my @t = gmtime( timegm( 0,0,0, 31,11,($self->{year} - 1) ) );
-            $self->{week} = POSIX::floor( ($t[7] - $t[6] + 11) / 7 );
-        }
+        if ( $key eq 'week' || $key eq 'weekyear' ) {
+            $self->{week} = POSIX::floor( ($self->{yearday} - $self->{weekday} + 10) / 7 );
+            if ($self->{yearday} > 361) {
+                # find out next year's jan-04 weekday
+                tie my %tmp, 'Date::Tie', year => ($self->{year} + 1), month => '01', day => '04';
+                # jan-04 weekday: 1  2  3  4  5  6  7
+                my @wk1 = qw( 29 32 32 32 32 31 30 29 );
+                my $last_day = $wk1[$tmp{weekday}];
+                $self->{week} = 1 if ($self->{day} >= $last_day);
+            }
+            if ( $self->{week} == 0 ) {
+                my @t = gmtime( timegm( 0,0,0, 31,11,($self->{year} - 1) ) );
+                $self->{week} = POSIX::floor( ($t[7] - $t[6] + 11) / 7 );
+            }
 
-        $self->{weekyear} = $self->{year};
-        $self->{weekyear}++ if ($self->{week} < 2)  and ($self->{month} > 10);
-        $self->{weekyear}-- if ($self->{week} > 50) and ($self->{month} < 2);
+            $self->{weekyear} = $self->{year};
+            $self->{weekyear}++ if ($self->{week} < 2)  and ($self->{month} > 10);
+            $self->{weekyear}-- if ($self->{week} > 50) and ($self->{month} < 2);
+        }
     } # create keys
 
     $value = $self->{$key};

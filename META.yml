@@ -1,13 +1,16 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Date-Tie
-version:      0.18
-version_from: lib/Date/Tie.pm
-installdirs:  site
-requires:
+--- #YAML:1.0
+name:                Date-Tie
+version:             0.19
+abstract:            ISO8601 dates made easier
+license:             ~
+author:              
+    - Flavio Soibelmann Glock
+generated_by:        ExtUtils::MakeMaker version 6.44
+distribution_type:   module
+requires:     
     POSIX:                         0
     Tie::Hash:                     0
     Time::Local:                   0
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

@@ -1,5 +1,9 @@
 Date::Tie
 
+0.19  2009-01-09
+ - fixed an infinite loop in week number calculation. 
+   Bug found by Martin Labonté; http://rt.cpan.org/Ticket/Display.html?id=42028
+
 0.18  2008-01-09
  - fixed week number.  Jean via http://rt.cpan.org/Ticket/Display.html?id=32071 
 
