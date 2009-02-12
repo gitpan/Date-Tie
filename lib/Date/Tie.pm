@@ -12,7 +12,7 @@ use POSIX;  # floor()
 use Time::Local qw( timegm );
 use vars    qw( @ISA %Frac %Max %Min %Mult $Infinity $VERSION $Resolution );
 @ISA =      qw( Tie::StdHash ); 
-$VERSION =  '0.19';
+$VERSION =  '0.20';
 $Infinity = 999_999_999_999;
 
 %Frac = (   frac_hour =>    60 * 60,      frac_minute => 60, 

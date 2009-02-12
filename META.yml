@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Date-Tie
-version:             0.19
+version:             0.20
 abstract:            ISO8601 dates made easier
 license:             ~
 author:              

@@ -1,5 +1,8 @@
 Date::Tie
 
+0.20  2009-02-12
+ - fixed a test that went wrong due to Feb having 28 days this year. 
+
 0.19  2009-01-09
  - fixed an infinite loop in week number calculation. 
    Bug found by Martin Labonté; http://rt.cpan.org/Ticket/Display.html?id=42028

@@ -102,28 +102,28 @@ my $date1 = Date::Tie->new();
 my $date2 = Date::Tie->new();
 # print "$date1->{year}-$date1->{month}-$date1->{day}\n";
 # print "$date2->{year}-$date2->{month}-$date2->{day}\n";
-$date1->{day} = 29;
+$date1->{day} = 28;
 $date1->{month} = 4;
 $date2->{month} = 4;
-$date2->{day} = 29;
+$date2->{day} = 28;
 # print "$date1->{year}-$date1->{month}-$date1->{day}\n";
 # print "$date2->{year}-$date2->{month}-$date2->{day}\n";
-test "$date1->{day}$date1->{month}", "2904";
-test "$date2->{day}$date1->{month}", "2904";
+test "$date1->{day}$date1->{month}", "2804";
+test "$date2->{day}$date1->{month}", "2804";
 
 my $date3;
 
 $date3 = $date1->new;
 $date3->{month}++;
-test "$date1->{day}$date1->{month}", "2904";
-test "$date3->{day}$date3->{month}", "2905";
+test "$date1->{day}$date1->{month}", "2804";
+test "$date3->{day}$date3->{month}", "2805";
 
 ( $date3 = $date1->new )->{month}++;
-test "$date1->{day}$date1->{month}", "2904";
-test "$date3->{day}$date3->{month}", "2905";
+test "$date1->{day}$date1->{month}", "2804";
+test "$date3->{day}$date3->{month}", "2805";
 
 $date3 = $date1->new(month => 3);
-test "$date1->{day}$date1->{month}", "2904";
-test "$date3->{day}$date3->{month}", "2903";
+test "$date1->{day}$date1->{month}", "2804";
+test "$date3->{day}$date3->{month}", "2803";
 
 1;
